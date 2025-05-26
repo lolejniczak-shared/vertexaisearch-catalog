@@ -1,0 +1,6 @@
+pip
+mesop
+discoveryengine
+google-genai
+google-auth
+requests
