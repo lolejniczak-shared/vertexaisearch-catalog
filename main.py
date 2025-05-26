@@ -9,6 +9,8 @@ import requests
 class AppConfig:
       vertexai_project_id = "genai-app-builder"
       app_engine = "genai-retail_1697838978813"
+      pubsub_project_id = "genai-app-builder" # Your GCP project ID
+      pubsub_topic_name = "user-queries-topic" # The name of your Pub/Sub topic
 
 
 ## this class represents single result set item - modify it if your results set includes different fields
@@ -70,6 +72,31 @@ class DatastoreService:
         response = requests.post(url, headers=headers, json=data)
         return response.json()
 
+# --- Pub/Sub Setup ---
+_pubsub_publisher = PublisherClient()
+_pubsub_topic_path = _pubsub_publisher.topic_path(
+    AppConfig.pubsub_project_id, AppConfig.pubsub_topic_name
+)
+
+def publish_query_to_pubsub(query: str):
+    """Publishes a user query to a Google Cloud Pub/Sub topic."""
+    if not query.strip():
+        return # Don't publish empty queries
+
+    try:
+        # Prepare the message data (e.g., as JSON string)
+        message_data = json.dumps({"query": query, "timestamp": me.current_timestamp()})
+        # Pub/Sub messages must be bytes
+        data = message_data.encode("utf-8")
+
+        future = _pubsub_publisher.publish(_pubsub_topic_path, data)
+        # Call result() to block until the publish completes, allowing errors to be raised.
+        # For a production app, you might publish asynchronously and handle errors differently.
+        message_id = future.result()
+        print(f"Published query '{query}' to Pub/Sub with message ID: {message_id}")
+    except Exception as e:
+        print(f"An unexpected error occurred while publishing to Pub/Sub: {e}")
+
 
 _datastore_service = DatastoreService(AppConfig.vertexai_project_id, AppConfig.app_engine)
 
@@ -95,6 +122,10 @@ def on_search_button_click(e: me.ClickEvent):
     query = state.search_query
 
     try:
+        ##send to pubsub
+        publish_query_to_pubsub(query)
+
+        ##handle query
         results_json = _datastore_service.search(query=query)
         ##print("Search API Response:", results_json) # Keep this for debugging
 
