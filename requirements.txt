@@ -4,3 +4,4 @@ discoveryengine
 google-genai
 google-auth
 requests
+google-pubsub
